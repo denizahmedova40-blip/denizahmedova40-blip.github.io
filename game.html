@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Daniz Ahmadova | Memory Match</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="sr-only" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="navbar container" aria-label="Primary navigation">
+        <a class="logo" href="index.html">Daniz Ahmadova</a>
+        <div class="nav-links" role="navigation" aria-label="Sections">
+          <a class="nav-link" href="index.html">Home</a>
+          <a class="nav-link" href="about.html">About</a>
+          <a class="nav-link" href="projects.html">Projects</a>
+          <a class="nav-link active" href="game.html" aria-current="page">Game</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page page-game">
+      <div class="container">
+        <h1 class="page-title">Memory Match</h1>
+        <p class="page-lead muted">
+          Flip cards to find matching tech icons — track your moves and beat your best time.
+        </p>
+
+        <section class="game-wrap memory-game-section" aria-label="Memory card game">
+          <div class="memory-difficulty" role="group" aria-label="Difficulty level">
+            <span class="memory-difficulty-label">Difficulty</span>
+            <div class="memory-diff-btns">
+              <button type="button" class="memory-diff-btn" data-difficulty="easy" aria-pressed="false">
+                Easy
+              </button>
+              <button type="button" class="memory-diff-btn active" data-difficulty="medium" aria-pressed="true">
+                Medium
+              </button>
+              <button type="button" class="memory-diff-btn" data-difficulty="hard" aria-pressed="false">
+                Hard
+              </button>
+            </div>
+          </div>
+
+          <div class="memory-toolbar">
+            <div class="memory-stat">
+              <span class="memory-stat-label">Moves</span>
+              <span class="memory-stat-value" id="memoryMoves">0</span>
+            </div>
+            <div class="memory-stat">
+              <span class="memory-stat-label">Time</span>
+              <span class="memory-stat-value" id="memoryTime">0:00</span>
+            </div>
+            <button type="button" class="btn btn-outline memory-new-btn" id="memoryNewGameTop">
+              New Game
+            </button>
+          </div>
+
+          <div class="memory-board-wrap">
+            <div
+              class="memory-board memory-board--medium"
+              id="memoryBoard"
+              role="group"
+              aria-label="Memory cards"
+            ></div>
+          </div>
+
+          <!-- Win overlay -->
+          <div class="memory-win-backdrop hidden" id="memoryWinBackdrop" aria-hidden="true">
+            <div
+              class="memory-win-dialog card"
+              id="memoryWinDialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="memoryWinTitle"
+            >
+              <h2 id="memoryWinTitle" class="memory-win-title">Congratulations!</h2>
+              <p class="memory-win-text">
+                You matched all pairs in <strong id="memoryWinMoves">0</strong> moves and
+                <strong id="memoryWinTime">0:00</strong>.
+              </p>
+              <button type="button" class="btn btn-primary memory-new-btn-wide" id="memoryNewGameWin">
+                Play Again
+              </button>
+            </div>
+          </div>
+
+          <p class="instructions memory-instructions">
+            <strong>How to play:</strong> Pick <strong>Easy</strong>, <strong>Medium</strong>, or
+            <strong>Hard</strong>, then flip two cards at a time to find every matching pair. Use
+            <strong>New Game</strong> anytime to reshuffle.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div>© 2026 Daniz Ahmadova</div>
+
+        <div class="footer-icons" aria-label="Social links">
+          <a href="https://github.com/denizahmedova40-blip" target="_blank" rel="noreferrer noopener" aria-label="GitHub">
+            <i class="fa-brands fa-github" aria-hidden="true"></i>
+          </a>
+          <a href="https://www.codecademy.com/profiles/DanizAhmadova" target="_blank" rel="noreferrer noopener" aria-label="Codecademy">
+            <i class="fa-solid fa-code" aria-hidden="true"></i>
+          </a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      /**
+       * Memory card game — difficulty modes (2×2 / 3×4 / 4×4), emoji pairs, CSS flip.
+       */
+      (function () {
+        /** Pool order: Easy 2 pairs; Medium 6 pairs; Hard 8 pairs. */
+        var SYMBOL_POOL = ["💻", "🖥️", "🖱️", "⌨️", "📱", "🔋", "💾", "🌐", "📡", "🔌"];
+
+        /**
+         * Timer tick (display seconds): Easy slower, Medium normal, Hard faster pace.
+         */
+        var DIFFICULTY = {
+          easy: { cols: 2, rows: 2, pairs: 2, timerMs: 1300 },
+          medium: { cols: 3, rows: 4, pairs: 6, timerMs: 1000 },
+          hard: { cols: 4, rows: 4, pairs: 8, timerMs: 650 }
+        };
+
+        var boardEl = document.getElementById("memoryBoard");
+        var movesEl = document.getElementById("memoryMoves");
+        var timeEl = document.getElementById("memoryTime");
+        var backdropEl = document.getElementById("memoryWinBackdrop");
+        var winMovesEl = document.getElementById("memoryWinMoves");
+        var winTimeEl = document.getElementById("memoryWinTime");
+        var btnTop = document.getElementById("memoryNewGameTop");
+        var btnWin = document.getElementById("memoryNewGameWin");
+        var diffBtns = document.querySelectorAll(".memory-diff-btn");
+
+        var currentDifficulty = "medium";
+
+        var cards = [];
+        var flipped = [];
+        var lock = false;
+        var moves = 0;
+        var matchedPairs = 0;
+        var seconds = 0;
+        var timerId = null;
+        var started = false;
+
+        function getConfig() {
+          return DIFFICULTY[currentDifficulty];
+        }
+
+        function shuffle(arr) {
+          var a = arr.slice();
+          for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = a[i];
+            a[i] = a[j];
+            a[j] = t;
+          }
+          return a;
+        }
+
+        function formatTime(s) {
+          var m = Math.floor(s / 60);
+          var sec = s % 60;
+          return m + ":" + (sec < 10 ? "0" : "") + sec;
+        }
+
+        function stopTimer() {
+          if (timerId !== null) {
+            clearInterval(timerId);
+            timerId = null;
+          }
+        }
+
+        function tick() {
+          seconds++;
+          timeEl.textContent = formatTime(seconds);
+        }
+
+        function ensureTimer() {
+          if (!started) {
+            started = true;
+            seconds = 0;
+            timeEl.textContent = formatTime(0);
+            stopTimer();
+            timerId = setInterval(tick, getConfig().timerMs);
+          }
+        }
+
+        function closeWin() {
+          backdropEl.classList.add("hidden");
+          backdropEl.setAttribute("aria-hidden", "true");
+        }
+
+        function openWin() {
+          stopTimer();
+          winMovesEl.textContent = String(moves);
+          winTimeEl.textContent = formatTime(seconds);
+          backdropEl.classList.remove("hidden");
+          backdropEl.setAttribute("aria-hidden", "false");
+          btnWin.focus();
+        }
+
+        function resetState() {
+          stopTimer();
+          started = false;
+          seconds = 0;
+          moves = 0;
+          matchedPairs = 0;
+          flipped = [];
+          lock = false;
+          movesEl.textContent = "0";
+          timeEl.textContent = "0:00";
+          closeWin();
+        }
+
+        function syncDifficultyButtons() {
+          for (var i = 0; i < diffBtns.length; i++) {
+            var btn = diffBtns[i];
+            var isSel = btn.getAttribute("data-difficulty") === currentDifficulty;
+            btn.classList.toggle("active", isSel);
+            btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+          }
+        }
+
+        function applyBoardLayoutClass() {
+          boardEl.className = "memory-board memory-board--" + currentDifficulty;
+        }
+
+        function buildDeck() {
+          var cfg = getConfig();
+          var symbols = SYMBOL_POOL.slice(0, cfg.pairs);
+          return shuffle(symbols.concat(symbols));
+        }
+
+        function handleCardClick(card) {
+          if (lock || card.classList.contains("matched") || card.classList.contains("flipped")) {
+            return;
+          }
+
+          ensureTimer();
+
+          card.classList.add("flipped");
+          card.setAttribute("aria-pressed", "true");
+          flipped.push(card);
+
+          if (flipped.length < 2) {
+            return;
+          }
+
+          lock = true;
+          moves++;
+          movesEl.textContent = String(moves);
+
+          var c1 = flipped[0];
+          var c2 = flipped[1];
+          var sym1 = c1.dataset.symbol;
+          var sym2 = c2.dataset.symbol;
+          var totalPairs = getConfig().pairs;
+
+          if (sym1 === sym2) {
+            c1.classList.add("matched");
+            c2.classList.add("matched");
+            c1.disabled = true;
+            c2.disabled = true;
+            flipped = [];
+            lock = false;
+            matchedPairs++;
+            if (matchedPairs === totalPairs) {
+              openWin();
+            }
+          } else {
+            window.setTimeout(function () {
+              c1.classList.remove("flipped");
+              c2.classList.remove("flipped");
+              c1.setAttribute("aria-pressed", "false");
+              c2.setAttribute("aria-pressed", "false");
+              flipped = [];
+              lock = false;
+            }, 650);
+          }
+        }
+
+        function renderBoard() {
+          applyBoardLayoutClass();
+          boardEl.innerHTML = "";
+          cards = [];
+          var cfg = getConfig();
+          var deck = buildDeck();
+          var totalCells = cfg.cols * cfg.rows;
+          var emptyCount = Math.max(0, totalCells - deck.length);
+
+          var slots = [];
+          for (var d = 0; d < deck.length; d++) {
+            slots.push({ kind: "card", symbol: deck[d] });
+          }
+          for (var e = 0; e < emptyCount; e++) {
+            slots.push({ kind: "empty" });
+          }
+          slots = shuffle(slots);
+
+          for (var i = 0; i < slots.length; i++) {
+            var slot = slots[i];
+            if (slot.kind === "empty") {
+              var hole = document.createElement("div");
+              hole.className = "memory-slot-empty";
+              hole.setAttribute("aria-hidden", "true");
+              boardEl.appendChild(hole);
+              continue;
+            }
+
+            var symbol = slot.symbol;
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "memory-card";
+            btn.dataset.symbol = symbol;
+            btn.setAttribute("aria-label", "Hidden card — flip to reveal");
+            btn.setAttribute("aria-pressed", "false");
+
+            var inner = document.createElement("span");
+            inner.className = "memory-card-inner";
+
+            var back = document.createElement("span");
+            back.className = "memory-card-face memory-card-back";
+            back.setAttribute("aria-hidden", "true");
+            back.innerHTML =
+              '<span class="memory-card-back-pattern"></span><span class="memory-card-back-mark">&lt;/&gt;</span>';
+
+            var front = document.createElement("span");
+            front.className = "memory-card-face memory-card-front";
+            front.setAttribute("aria-hidden", "true");
+            front.textContent = symbol;
+
+            inner.appendChild(back);
+            inner.appendChild(front);
+            btn.appendChild(inner);
+
+            (function (card) {
+              card.addEventListener("click", function () {
+                handleCardClick(card);
+              });
+            })(btn);
+
+            boardEl.appendChild(btn);
+            cards.push(btn);
+          }
+        }
+
+        function setDifficulty(diff) {
+          if (!DIFFICULTY[diff]) {
+            return;
+          }
+          currentDifficulty = diff;
+          newGame();
+        }
+
+        function newGame() {
+          resetState();
+          syncDifficultyButtons();
+          renderBoard();
+        }
+
+        for (var d = 0; d < diffBtns.length; d++) {
+          diffBtns[d].addEventListener("click", function () {
+            setDifficulty(this.getAttribute("data-difficulty"));
+          });
+        }
+
+        btnTop.addEventListener("click", newGame);
+        btnWin.addEventListener("click", function () {
+          closeWin();
+          newGame();
+        });
+
+        backdropEl.addEventListener("click", function (e) {
+          if (e.target === backdropEl) {
+            closeWin();
+          }
+        });
+
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && !backdropEl.classList.contains("hidden")) {
+            closeWin();
+          }
+        });
+
+        newGame();
+      })();
+    </script>
+  </body>
+</html>
